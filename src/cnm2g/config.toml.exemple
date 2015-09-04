@@ -1,0 +1,18 @@
+[graphite]
+host = "graphite"
+port = "2003"
+prefix = "cnmonitor"
+
+[ldap.srv1]
+	uri = "ldap://ldap1.mydomain.io"
+        user = "cn=Directory Manager"
+        pass = "secret"
+
+[ldap.srv2]
+	uri = "ldap://ldap2.mydomain.io"
+        user = "cn=Directory Manager"
+        pass = "secret"
+       
+[dn.monitor]
+	dn = "cn=monitor"
+
