@@ -16,14 +16,14 @@ prefix = "cnmonitor"
 [dn.monitor]
 	dn = "cn=monitor"
 	data = [
-		threads,
-		currentconnections,
-		totalconnections,
-		readwaiters,
-		opsinitiated,
-		opscompleted,
-		entriessent,
-		bytessent
+		"threads",
+		"currentconnections",
+		"totalconnections",
+		"readwaiters",
+		"opsinitiated",
+		"opscompleted",
+		"entriessent",
+		"bytessent"
 		]
 
 [dn.snmp]
