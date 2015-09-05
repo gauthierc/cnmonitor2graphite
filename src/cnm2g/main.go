@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/spf13/cast"
+	//	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"gopkg.in/ldap.v1"
 	"log"
@@ -15,8 +15,6 @@ const APP_VERSION = "0.1"
 
 // The flag package provides a default help printer via -h switch
 var versionFlag *bool = flag.Bool("v", false, "Print the version number.")
-
-var Attributes []string = []string{"dn", "cn"}
 
 type LdapEntry struct {
 	URI  string
@@ -42,8 +40,8 @@ func InitializeConfig() {
 }
 
 //Fetch Data from ldap
-func FetchData(ldapuri, user, passwd, baseDN, filter string) {
-	fmt.Println("Connect to ldap and read data")
+func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string) {
+	log.Println("Connect to ldap and read data")
 	l, err := ldap.Dial("tcp", ldapuri)
 	if err != nil {
 		log.Fatalf("ERROR: %s\n", err.Error())
@@ -58,7 +56,7 @@ func FetchData(ldapuri, user, passwd, baseDN, filter string) {
 	}
 	search := ldap.NewSearchRequest(
 		baseDN,
-		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 0, 0, false,
 		filter,
 		Attributes,
 		nil)
@@ -69,7 +67,8 @@ func FetchData(ldapuri, user, passwd, baseDN, filter string) {
 		return
 	}
 
-	log.Printf("Search: %s -> num of entries = %d\n", search.Filter, len(sr.Entries))
+	log.Printf("BaseDN: %s  -- Search: %s -> num of entries = %d\n", baseDN, search.Filter, len(sr.Entries))
+	sr.PrettyPrint(0)
 }
 
 //Sent data to graphite
@@ -98,23 +97,17 @@ func main() {
 	fmt.Println("Graphite >>>", graphite)
 	fmt.Println("Prefix >>>", prefix)
 	SentData(graphite, prefix)
-	fmt.Println("dn >>>", viper.GetString("snmp.dn"))
-	//data := viper.GetStringSlice("snmp.data")
-	//fmt.Println("data >>>", data)
 	ldapmap := viper.GetStringMap("ldap")
-	for ldap, conf := range ldapmap {
-		fmt.Println("ldap:", ldap)
-		m, _ := cast.ToStringMapStringE(conf)
-		for k, v := range m {
-			fmt.Println(k, v)
-		}
-	}
 	dnmap := viper.GetStringMap("dn")
-	for dn, _ := range dnmap {
-		fmt.Println("dn:", dn)
-		data := viper.GetStringSlice(fmt.Sprintf("dn.%s.data", dn))
-		basedn := viper.GetStringSlice(fmt.Sprintf("dn.%s.dn", dn))
-		fmt.Println("basedn >>>", basedn)
-		fmt.Println("data >>>", data)
+	for ldap, _ := range ldapmap {
+		ldapuri := viper.GetString(fmt.Sprintf("ldap.%s.uri", ldap))
+		ldapuser := viper.GetString(fmt.Sprintf("ldap.%s.user", ldap))
+		ldappass := viper.GetString(fmt.Sprintf("ldap.%s.pass", ldap))
+		for dn, _ := range dnmap {
+			fmt.Println("dn:", dn)
+			data := viper.GetStringSlice(fmt.Sprintf("dn.%s.data", dn))
+			basedn := viper.GetString(fmt.Sprintf("dn.%s.dn", dn))
+			FetchData(ldapuri, ldapuser, ldappass, basedn, "(objectclass=*)", data)
+		}
 	}
 }
