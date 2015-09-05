@@ -40,7 +40,7 @@ func InitializeConfig() {
 }
 
 //Fetch Data from ldap
-func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string) {
+func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string) *ldap.SearchResult {
 	log.Println("Connect to ldap and read data")
 	l, err := ldap.Dial("tcp", ldapuri)
 	if err != nil {
@@ -52,7 +52,7 @@ func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string
 	err = l.Bind(user, passwd)
 	if err != nil {
 		log.Printf("ERROR: Cannot bind: %s\n", err.Error())
-		return
+		return nil
 	}
 	search := ldap.NewSearchRequest(
 		baseDN,
@@ -64,17 +64,17 @@ func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string
 	sr, err := l.Search(search)
 	if err != nil {
 		log.Fatalf("ERROR: %s\n", err.Error())
-		return
+		return nil
 	}
 
 	log.Printf("BaseDN: %s  -- Search: %s -> num of entries = %d\n", baseDN, search.Filter, len(sr.Entries))
-	sr.PrettyPrint(0)
+	return sr
 }
 
 //Sent data to graphite
-func SentData(graphite, prefix string) {
+func SentData(graphite, prefix string, result *ldap.SearchResult) {
 	t := time.Now().Unix()
-	fmt.Println("Connect to graphite and sent data")
+	log.Println("Connect to", graphite, "and sent data")
 	conn, err := net.Dial("tcp", graphite)
 	if err != nil {
 		log.Printf("ERROR: Cannot connect: %s\n", err.Error())
@@ -83,6 +83,7 @@ func SentData(graphite, prefix string) {
 	defer conn.Close()
 	fmt.Fprintf(conn, "%s.test 20 %d\n", prefix, t)
 	fmt.Printf("%s.test 20 %d\n", prefix, t)
+	result.PrettyPrint(0)
 }
 
 func main() {
@@ -96,7 +97,6 @@ func main() {
 	prefix := fmt.Sprintf("%s", viper.GetString("graphite.prefix"))
 	fmt.Println("Graphite >>>", graphite)
 	fmt.Println("Prefix >>>", prefix)
-	SentData(graphite, prefix)
 	ldapmap := viper.GetStringMap("ldap")
 	dnmap := viper.GetStringMap("dn")
 	for ldap, _ := range ldapmap {
@@ -107,7 +107,9 @@ func main() {
 			fmt.Println("dn:", dn)
 			data := viper.GetStringSlice(fmt.Sprintf("dn.%s.data", dn))
 			basedn := viper.GetString(fmt.Sprintf("dn.%s.dn", dn))
-			FetchData(ldapuri, ldapuser, ldappass, basedn, "(objectclass=*)", data)
+			ldapresult := FetchData(ldapuri, ldapuser, ldappass, basedn, "(objectclass=*)", data)
+			ldapresult.PrettyPrint(0)
+			SentData(graphite, prefix, ldapresult)
 		}
 	}
 }
