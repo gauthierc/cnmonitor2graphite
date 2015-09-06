@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	//	"github.com/spf13/cast"
 	"github.com/spf13/viper"
 	"gopkg.in/ldap.v1"
 	"log"
@@ -11,23 +10,14 @@ import (
 	"time"
 )
 
-const APP_VERSION = "0.1"
+const APP_VERSION = "0.5"
+const DEBUG = false
 
 // The flag package provides a default help printer via -h switch
 var versionFlag *bool = flag.Bool("v", false, "Print the version number.")
 
-type LdapEntry struct {
-	URI  string
-	user string
-	pass string
-}
-
-type Ldap []*LdapEntry
-type Ldaps map[string]*Ldap
-
 // Initialize Configuration
 func InitializeConfig() {
-	fmt.Println("read config files")
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/cnmonitor2graphite/")
 	viper.AddConfigPath("$HOME/.cnmonitor2graphite")
@@ -41,7 +31,9 @@ func InitializeConfig() {
 
 //Fetch Data from ldap
 func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string) *ldap.SearchResult {
-	log.Println("Connect to ldap and read data")
+	if DEBUG {
+		log.Println("Connect to ldap and read data")
+	}
 	l, err := ldap.Dial("tcp", ldapuri)
 	if err != nil {
 		log.Fatalf("ERROR: %s\n", err.Error())
@@ -67,36 +59,57 @@ func FetchData(ldapuri, user, passwd, baseDN, filter string, Attributes []string
 		return nil
 	}
 
-	log.Printf("BaseDN: %s  -- Search: %s -> num of entries = %d\n", baseDN, search.Filter, len(sr.Entries))
+	if DEBUG {
+		log.Printf("BaseDN: %s  -- Search: %s -> num of entries = %d\n", baseDN, search.Filter, len(sr.Entries))
+	}
 	return sr
 }
 
 //Sent data to graphite
 func SentData(graphite, prefix string, result *ldap.SearchResult) {
 	t := time.Now().Unix()
-	log.Println("Connect to", graphite, "and sent data")
+	if DEBUG {
+		log.Println("Connect to", graphite, "and sent data")
+	}
 	conn, err := net.Dial("tcp", graphite)
 	if err != nil {
-		log.Printf("ERROR: Cannot connect: %s\n", err.Error())
+		if DEBUG {
+			log.Printf("ERROR: Cannot connect: %s\n", err.Error())
+		}
 		return
 	}
 	defer conn.Close()
-	fmt.Fprintf(conn, "%s.test 20 %d\n", prefix, t)
-	fmt.Printf("%s.test 20 %d\n", prefix, t)
-	result.PrettyPrint(0)
+	for _, entry := range result.Entries {
+		for _, attr := range entry.Attributes {
+			fmt.Fprintf(conn, "%s.%s %s %d\n", prefix, attr.Name, attr.ByteValues[0], t)
+		}
+	}
+}
+
+//Show data for graphite
+func ShowData(graphite, prefix string, result *ldap.SearchResult) {
+	t := time.Now().Unix()
+	for _, entry := range result.Entries {
+		for _, attr := range entry.Attributes {
+			fmt.Printf("%s.%s %s %d\n", prefix, attr.Name, attr.ByteValues[0], t)
+		}
+	}
 }
 
 func main() {
 	flag.Parse() // Scan the arguments list
-
-	if *versionFlag {
-		fmt.Println("Version:", APP_VERSION)
-	}
 	InitializeConfig()
 	graphite := fmt.Sprintf("%s%s%s", viper.GetString("graphite.host"), ":", viper.GetString("graphite.port"))
 	prefix := fmt.Sprintf("%s", viper.GetString("graphite.prefix"))
-	fmt.Println("Graphite >>>", graphite)
-	fmt.Println("Prefix >>>", prefix)
+
+	if *versionFlag {
+		fmt.Println("cnm2g: Cn=monitor to Graphite")
+		fmt.Println("Version:", APP_VERSION)
+		fmt.Println("Config File >>>", viper.ConfigFileUsed())
+		fmt.Println("Graphite >>>", graphite)
+		fmt.Println("Prefix >>>", prefix)
+		return
+	}
 	ldapmap := viper.GetStringMap("ldap")
 	dnmap := viper.GetStringMap("dn")
 	for ldap, _ := range ldapmap {
@@ -104,12 +117,15 @@ func main() {
 		ldapuser := viper.GetString(fmt.Sprintf("ldap.%s.user", ldap))
 		ldappass := viper.GetString(fmt.Sprintf("ldap.%s.pass", ldap))
 		for dn, _ := range dnmap {
-			fmt.Println("dn:", dn)
+			prefixldap := fmt.Sprintf("%s.%s.%s", prefix, ldap, dn)
 			data := viper.GetStringSlice(fmt.Sprintf("dn.%s.data", dn))
 			basedn := viper.GetString(fmt.Sprintf("dn.%s.dn", dn))
 			ldapresult := FetchData(ldapuri, ldapuser, ldappass, basedn, "(objectclass=*)", data)
-			ldapresult.PrettyPrint(0)
-			SentData(graphite, prefix, ldapresult)
+			if DEBUG {
+				ShowData(graphite, prefixldap, ldapresult)
+			} else {
+				SentData(graphite, prefixldap, ldapresult)
+			}
 		}
 	}
 }
