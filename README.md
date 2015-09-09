@@ -11,7 +11,7 @@ host = "graphite"
 port = "2003"
 prefix = "cnmonitor"
 ```
-###ldap
+### ldap
 Il est possible de renseigner plusieurs serveurs ldap comme ceci:
 
 ```
@@ -22,7 +22,7 @@ Il est possible de renseigner plusieurs serveurs ldap comme ceci:
 ```
 Le champs user et pass peuvent être vide si la ressource ldap est accessible en anonyme.
 
-###dn
+### dn
 Cette partie indique le chemin et les attributs à grapher.
 
 ```
