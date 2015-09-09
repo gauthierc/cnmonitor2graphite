@@ -20,7 +20,7 @@ var versionFlag *bool = flag.Bool("v", false, "Print the version number.")
 func InitializeConfig() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath("/etc/cnmonitor2graphite/")
-	viper.AddConfigPath("$HOME/.cnmonitor2graphite")
+	viper.AddConfigPath("$HOME/.cnmonitor2graphite/")
 	viper.Set("Verbose", true)
 	viper.SetConfigType("toml")
 	err := viper.ReadInConfig()
